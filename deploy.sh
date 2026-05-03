@@ -1,4 +1,3 @@
-
 set -Eeuo pipefail
 export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 
@@ -6,8 +5,10 @@ LOG_DIR="/home/portallogist/deploy-logs"
 LOG_FILE="$LOG_DIR/deploy.log"
 LOCK_FILE="/tmp/portallogist_deploy.lock"
 TRIGGER_FILE="$LOG_DIR/deploy_requested"
+
 FRONTEND_DIR="/home/portallogist/public_html/portallogistice"
-BACKEND_DEFAULT_DIR="/home/portallogist/laravel_app"
+BACKEND_DIR="/home/portallogist/laravel_app"
+
 REPO_URL="https://github.com/redbox122/portallogisticejoin-as-investor.git"
 COMPOSER_BIN="/usr/local/bin/composer"
 KEEP_BACKUPS=3
@@ -37,11 +38,20 @@ fi
 
 rm -f "$TRIGGER_FILE"
 
+FORCE_DEPLOY=false
+if [ "${1:-}" = "--force" ]; then
+  FORCE_DEPLOY=true
+fi
+
+# --------------------------------------------------
+# Frontend: sync from Git
+# --------------------------------------------------
 cd "$FRONTEND_DIR"
 
 if [ ! -d .git ]; then
   git init
 fi
+
 if ! git remote | grep -q '^origin$'; then
   git remote add origin "$REPO_URL"
 else
@@ -55,90 +65,89 @@ SYNCED_FROM_GIT=false
 
 if git ls-remote --heads origin main | grep -q main; then
   PREV_SHA="$(git rev-parse --verify HEAD 2>/dev/null || true)"
+
   git fetch origin main
+
   if git rev-parse --verify main >/dev/null 2>&1; then
     git checkout main
   else
     git checkout -b main
   fi
+
   git reset --hard origin/main
   NEW_SHA="$(git rev-parse --verify HEAD 2>/dev/null || true)"
+
   if [ -n "$PREV_SHA" ] && [ -n "$NEW_SHA" ] && [ "$PREV_SHA" != "$NEW_SHA" ]; then
     CHANGED_FILES="$(git diff --name-only "$PREV_SHA" "$NEW_SHA" || true)"
   fi
+
   SYNCED_FROM_GIT=true
   echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Synced frontend from origin/main"
 else
   echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] origin/main not found; skipping git sync"
 fi
 
-BACKEND_DIR="$BACKEND_DEFAULT_DIR"
-if [ -d "$FRONTEND_DIR/tasheel-backend" ]; then
-  BACKEND_DIR="$FRONTEND_DIR/tasheel-backend"
-fi
-
-FORCE_DEPLOY=false
-if [ "${1:-}" = "--force" ]; then
-  FORCE_DEPLOY=true
-fi
-
-backend_changed=false
+# --------------------------------------------------
+# Change detection
+# Backend is separate and always real at /home/portallogist/laravel_app
+# So backend steps always run safely.
+# Frontend build runs only when frontend files changed (or --force)
+# --------------------------------------------------
+backend_changed=true
+composer_inputs_changed=true
 frontend_changed=false
-composer_inputs_changed=false
 npm_inputs_changed=false
 
 if $FORCE_DEPLOY; then
-  backend_changed=true
   frontend_changed=true
-  composer_inputs_changed=true
   npm_inputs_changed=true
 elif $SYNCED_FROM_GIT && [ -n "$PREV_SHA" ] && [ -n "$NEW_SHA" ] && [ "$PREV_SHA" = "$NEW_SHA" ]; then
-  backend_changed=false
   frontend_changed=false
-  composer_inputs_changed=false
   npm_inputs_changed=false
 elif [ -n "$CHANGED_FILES" ]; then
   while IFS= read -r file; do
     case "$file" in
-      tasheel-backend/*|laravel_app/*)
-        backend_changed=true
-        ;;
       src/*|public/*|package.json|package-lock.json|.env.production|index.html)
         frontend_changed=true
         ;;
     esac
+
     case "$file" in
-      tasheel-backend/composer.json|tasheel-backend/composer.lock|laravel_app/composer.json|laravel_app/composer.lock)
-        composer_inputs_changed=true
-        ;;
       package.json|package-lock.json)
         npm_inputs_changed=true
         ;;
     esac
   done <<< "$CHANGED_FILES"
 else
-  # No git diff available (initial sync / empty repo): keep safe behavior.
-  backend_changed=true
+  # Initial sync / empty repo / unknown diff → safe behavior
   frontend_changed=true
-  composer_inputs_changed=true
   npm_inputs_changed=true
 fi
 
+# --------------------------------------------------
+# Backend deploy (always /home/portallogist/laravel_app)
+# --------------------------------------------------
 cd "$BACKEND_DIR"
+
+if [ ! -f composer.json ]; then
+  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] ERROR: composer.json not found in $BACKEND_DIR"
+  exit 1
+fi
+
 if [ ! -d vendor ] || $composer_inputs_changed; then
   "$COMPOSER_BIN" install --no-dev --optimize-autoloader
 else
-  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Skipping composer install (no backend dependency changes)"
+  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Skipping composer install (vendor present, no dependency changes)"
 fi
 
-if $backend_changed || $FORCE_DEPLOY; then
-  php artisan migrate --force
-  php artisan optimize:clear
-else
-  echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Skipping backend migrate/optimize (no backend changes)"
-fi
+php artisan migrate --force
+php artisan optimize:clear
 
+# --------------------------------------------------
+# Frontend deploy
+# --------------------------------------------------
 cd "$FRONTEND_DIR"
+
 if [ ! -d node_modules ] || $npm_inputs_changed; then
   npm install --legacy-peer-deps
 else
@@ -157,9 +166,11 @@ BACKUP_DIR="$FRONTEND_DIR/build_prev_$(date +%Y%m%d_%H%M%S)"
 if [ -d "$FRONTEND_DIR/build" ]; then
   mv "$FRONTEND_DIR/build" "$BACKUP_DIR"
 fi
+
 mv "$FRONTEND_DIR/build_new" "$FRONTEND_DIR/build"
 
 mkdir -p "$FRONTEND_DIR/build/api"
+
 cat > "$FRONTEND_DIR/build/.htaccess" <<'HT'
 <IfModule mod_rewrite.c>
     RewriteEngine On
