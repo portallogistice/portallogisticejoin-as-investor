@@ -3,43 +3,80 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config';
 
 const AuthContext = createContext();
-const TOKEN_KEYS = ['portal_logistics_token', 'token', 'auth_token', 'admin_token', 'user_token'];
-const USER_TYPE_KEYS = ['portal_logistics_user_type', 'user_type'];
+const TOKEN_COOKIE_NAME = 'portal_logistics_token';
+const USER_TYPE_COOKIE_NAME = 'portal_logistics_user_type';
+const USER_COOKIE_NAME = 'portal_logistics_user';
+const ADMIN_COOKIE_NAME = 'portal_logistics_admin';
 
-const readStoredToken = () => {
-  for (const key of TOKEN_KEYS) {
-    const raw = localStorage.getItem(key);
-    if (raw && String(raw).trim()) {
-      return String(raw).trim();
+// Cookie utility functions
+export const getCookie = (name) => {
+  const nameEQ = encodeURIComponent(name) + '=';
+  const cookies = document.cookie.split(';');
+  for (let cookie of cookies) {
+    cookie = cookie.trim();
+    if (cookie.startsWith(nameEQ)) {
+      return decodeURIComponent(cookie.substring(nameEQ.length));
     }
   }
   return null;
+};
+
+const setCookie = (name, value, options = {}) => {
+  const defaults = {
+    path: '/',
+    expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+  };
+  const finalOptions = { ...defaults, ...options };
+
+  let cookieString = `${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
+
+  if (finalOptions.expires instanceof Date) {
+    cookieString += `; expires=${finalOptions.expires.toUTCString()}`;
+  }
+  if (finalOptions.path) {
+    cookieString += `; path=${finalOptions.path}`;
+  }
+  if (finalOptions.domain) {
+    cookieString += `; domain=${finalOptions.domain}`;
+  }
+  if (finalOptions.secure) {
+    cookieString += '; secure';
+  }
+  if (finalOptions.sameSite) {
+    cookieString += `; samesite=${finalOptions.sameSite}`;
+  }
+
+  document.cookie = cookieString;
+};
+
+const removeCookie = (name) => {
+  setCookie(name, '', { expires: new Date(0) });
+};
+
+export const readStoredToken = () => {
+  const token = getCookie(TOKEN_COOKIE_NAME);
+  return token && String(token).trim() ? String(token).trim() : null;
 };
 
 const writeStoredToken = (value) => {
-  TOKEN_KEYS.forEach((key) => localStorage.setItem(key, value));
+  setCookie(TOKEN_COOKIE_NAME, value);
 };
 
 const clearStoredToken = () => {
-  TOKEN_KEYS.forEach((key) => localStorage.removeItem(key));
+  removeCookie(TOKEN_COOKIE_NAME);
 };
 
 const readStoredUserType = () => {
-  for (const key of USER_TYPE_KEYS) {
-    const raw = localStorage.getItem(key);
-    if (raw && String(raw).trim()) {
-      return String(raw).trim();
-    }
-  }
-  return null;
+  const userType = getCookie(USER_TYPE_COOKIE_NAME);
+  return userType && String(userType).trim() ? String(userType).trim() : null;
 };
 
 const writeStoredUserType = (value) => {
-  USER_TYPE_KEYS.forEach((key) => localStorage.setItem(key, value));
+  setCookie(USER_TYPE_COOKIE_NAME, value);
 };
 
 const clearStoredUserType = () => {
-  USER_TYPE_KEYS.forEach((key) => localStorage.removeItem(key));
+  removeCookie(USER_TYPE_COOKIE_NAME);
 };
 
 export const useAuth = () => {
@@ -62,26 +99,26 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Use a flag to prevent multiple simultaneous checks
     let isMounted = true;
-    
+
     const initAuth = async () => {
       const storedToken = readStoredToken();
       const storedUserType = readStoredUserType();
-      
+
       if (storedToken && storedUserType) {
         // We have stored auth data, restore it
         if (isMounted) {
           setToken(storedToken);
           setUserType(storedUserType);
-          
+
           try {
             if (storedUserType === 'user') {
-              const storedUser = localStorage.getItem('portal_logistics_user');
+              const storedUser = getCookie(USER_COOKIE_NAME);
               if (storedUser) {
                 const parsedUser = JSON.parse(storedUser);
                 setUser(parsedUser);
               }
             } else if (storedUserType === 'admin') {
-              const storedAdmin = localStorage.getItem('portal_logistics_admin');
+              const storedAdmin = getCookie(ADMIN_COOKIE_NAME);
               if (storedAdmin) {
                 const parsedAdmin = JSON.parse(storedAdmin);
                 setAdmin(parsedAdmin);
@@ -100,14 +137,14 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(false);
         }
       }
-      
+
       if (isMounted) {
         setLoading(false);
       }
     };
-    
+
     initAuth();
-    
+
     return () => {
       isMounted = false;
     };
@@ -118,15 +155,15 @@ export const AuthProvider = ({ children }) => {
     try {
       const storedToken = readStoredToken();
       const storedUserType = readStoredUserType();
-      
+
       if (storedToken && storedUserType) {
         setToken(storedToken);
         setUserType(storedUserType);
-        
+
         // Try to restore user/admin data
         try {
           if (storedUserType === 'user') {
-            const storedUser = localStorage.getItem('portal_logistics_user');
+            const storedUser = getCookie(USER_COOKIE_NAME);
             if (storedUser) {
               const parsedUser = JSON.parse(storedUser);
               setUser(parsedUser);
@@ -136,7 +173,7 @@ export const AuthProvider = ({ children }) => {
               setIsAuthenticated(true);
             }
           } else if (storedUserType === 'admin') {
-            const storedAdmin = localStorage.getItem('portal_logistics_admin');
+            const storedAdmin = getCookie(ADMIN_COOKIE_NAME);
             if (storedAdmin) {
               const parsedAdmin = JSON.parse(storedAdmin);
               setAdmin(parsedAdmin);
@@ -169,11 +206,11 @@ export const AuthProvider = ({ children }) => {
   const login = async (loginData, isAdmin = false) => {
     try {
       setLoading(true);
-      
-      const endpoint = isAdmin 
+
+      const endpoint = isAdmin
         ? `${API_BASE_URL}/portallogistice/admin/login`
         : `${API_BASE_URL}/portallogistice/login`;
-      
+
       const requestData = isAdmin
         ? { email: loginData.login, password: loginData.password }
         : { login: loginData.login, password: loginData.password };
@@ -213,9 +250,8 @@ export const AuthProvider = ({ children }) => {
 
         // تخزين التوكن ثم التوجيه للوحة التحكم
         writeStoredToken(authToken);
-        // Explicit key expected by some pages and debugging steps.
-        localStorage.setItem('token', authToken);
-        localStorage.setItem(`portal_logistics_${type}`, JSON.stringify(userData));
+        const cookieName = type === 'admin' ? ADMIN_COOKIE_NAME : USER_COOKIE_NAME;
+        setCookie(cookieName, JSON.stringify(userData));
         writeStoredUserType(type);
 
         // Update state IMMEDIATELY and SYNCHRONOUSLY
@@ -264,12 +300,12 @@ export const AuthProvider = ({ children }) => {
     try {
       const storedToken = readStoredToken();
       const storedUserType = readStoredUserType();
-      
+
       if (storedToken) {
         const endpoint = storedUserType === 'admin'
           ? `${API_BASE_URL}/portallogistice/admin/logout`
           : `${API_BASE_URL}/portallogistice/logout`;
-        
+
         await axios.post(endpoint, {}, {
           headers: {
             'Authorization': `Bearer ${storedToken}`,
@@ -280,10 +316,10 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Clear localStorage
+      // Clear cookies
       clearStoredToken();
-      localStorage.removeItem('portal_logistics_user');
-      localStorage.removeItem('portal_logistics_admin');
+      removeCookie(USER_COOKIE_NAME);
+      removeCookie(ADMIN_COOKIE_NAME);
       clearStoredUserType();
 
       // Clear state
@@ -326,7 +362,7 @@ export const AuthProvider = ({ children }) => {
   const getAuthHeaders = () => {
     const storedToken = readStoredToken();
     const lang = localStorage.getItem('i18nextLng') || 'ar';
-    
+
     if (!storedToken) {
       console.error('No token found in localStorage');
       return {
@@ -335,7 +371,7 @@ export const AuthProvider = ({ children }) => {
         'X-LANG': lang
       };
     }
-    
+
     return {
       'Authorization': `Bearer ${storedToken}`,
       'Content-Type': 'application/json',

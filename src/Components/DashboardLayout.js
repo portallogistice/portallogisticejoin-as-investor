@@ -3,9 +3,6 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../Context/AuthContext';
 import UserSidebar from './UserSidebar';
-import SaasLanguageSwitcher from '../CustomComponents/SaasLanguageSwitcher';
-import RefusalNotificationDialog from './RefusalNotificationDialog';
-import RealTimeNotificationHandler from './RealTimeNotificationHandler';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import '../Css/admin-layout.css';
@@ -42,7 +39,7 @@ const DashboardLayout = () => {
     setIsRTL(i18n.language === 'ar');
     document.documentElement.setAttribute('dir', i18n.language === 'ar' ? 'rtl' : 'ltr');
     document.documentElement.setAttribute('lang', i18n.language);
-    
+
     // Check if we need to force reload (detect stale cache on first load after login)
     // This runs once on mount to catch cases where old JS is still loaded
     const checkStaleCache = () => {
@@ -50,7 +47,7 @@ const DashboardLayout = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const hasCacheBuster = urlParams.has('_t');
       const justLoggedIn = sessionStorage.getItem('just_logged_in') === 'true';
-      
+
       // If no cache buster and we just logged in, reload once with cache buster
       if (!hasCacheBuster && justLoggedIn) {
         sessionStorage.removeItem('just_logged_in');
@@ -61,7 +58,7 @@ const DashboardLayout = () => {
         }, 50);
       }
     };
-    
+
     checkStaleCache();
   }, [i18n.language]);
 
@@ -177,7 +174,7 @@ const DashboardLayout = () => {
       // Check if we've already checked in this session
       const sessionKey = 'refusal_notifications_checked';
       const hasChecked = sessionStorage.getItem(sessionKey) === 'true';
-      
+
       // Reset check flag if user just logged in
       const justLoggedIn = sessionStorage.getItem('just_logged_in') === 'true';
       if (justLoggedIn) {
@@ -199,14 +196,14 @@ const DashboardLayout = () => {
 
         if (response.data?.success) {
           const notifications = response.data.data.notifications || [];
-          
+
           // Find the most recent unread refusal notification that hasn't been shown
           const refusalTypes = ['document_rejected', 'contract_denied'];
           const shownNotifications = JSON.parse(sessionStorage.getItem('shown_refusal_notifications') || '[]');
-          
+
           const refusalNotification = notifications
-            .filter(n => 
-              refusalTypes.includes(n.type) && 
+            .filter(n =>
+              refusalTypes.includes(n.type) &&
               !n.read_at &&
               !shownNotifications.includes(n.id) // Don't show if already shown in this session
             )
@@ -218,7 +215,7 @@ const DashboardLayout = () => {
             shownNotifications.push(refusalNotification.id);
             sessionStorage.setItem('shown_refusal_notifications', JSON.stringify(shownNotifications));
           }
-          
+
           // Mark as checked
           sessionStorage.setItem(sessionKey, 'true');
           setHasCheckedRefusals(true);
@@ -279,7 +276,6 @@ const DashboardLayout = () => {
       <div className="admin-content-wrapper">
         <header className="admin-header admin-header--dashboard">
           <div className="admin-header__start">
-            <SaasLanguageSwitcher />
             <button
               className="sidebar-toggle-btn"
               onClick={toggleSidebar}
@@ -431,17 +427,6 @@ const DashboardLayout = () => {
         <DashboardFooter />
       </div>
 
-      {/* Real-time Notification Handler - handles all notification types with sound and popup */}
-      <RealTimeNotificationHandler />
-
-      {/* Legacy Refusal Notification Dialog - kept for backward compatibility */}
-      {refusalNotification && (
-        <RefusalNotificationDialog
-          notification={refusalNotification}
-          onClose={handleCloseDialog}
-          onMarkAsRead={handleMarkAsRead}
-        />
-      )}
     </div>
   );
 };

@@ -42,16 +42,10 @@ const AdminSidebar = ({ isOpen, onToggle }) => {
       label: 'سجل ملاك الأصول (الشركاء)',
     },
     {
-      id: 'reports',
-      path: '/admin/statistics',
-      icon: 'fa-chart-line',
-      label: 'التقارير',
-    },
-    {
-id:'invoices',
-path:'/admin/invoices',
-icon:'fa-file-invoice-dollar',
-label:'إدارة مخصصات الصيانة التشغيلية'
+      id: 'invoices',
+      path: '/admin/invoices',
+      icon: 'fa-file-invoice-dollar',
+      label: 'إدارة مخصصات الصيانة التشغيلية'
     },
     {
       id: 'requests',
@@ -111,15 +105,15 @@ label:'إدارة مخصصات الصيانة التشغيلية'
     <>
       {/* Mobile Overlay */}
       {isOpen && (
-        <div 
-          className="admin-sidebar-overlay" 
+        <div
+          className="admin-sidebar-overlay"
           onClick={onToggle}
           style={{ animation: 'fadeIn 0.2s ease-in-out' }}
         />
       )}
 
       {/* Sidebar */}
-      <aside 
+      <aside
         className={`admin-sidebar ${isOpen ? 'open' : ''} ${isRTL ? 'rtl' : 'ltr'}`}
         dir={isRTL ? 'rtl' : 'ltr'}
       >

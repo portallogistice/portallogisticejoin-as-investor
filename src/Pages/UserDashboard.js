@@ -8,6 +8,7 @@ import LanguageSwitcher from '../CustomComponents/LanguageSwitcher';
 import ContractForm from '../Components/ContractForm';
 import ProfileCompletionModal from '../Components/ProfileCompletionModal';
 import { API_BASE_URL } from '../config';
+import {getCookie} from '../Context/AuthContext';
 import '../Css/dashboard.css';
 
 const UserDashboard = () => {
@@ -110,7 +111,7 @@ const UserDashboard = () => {
 
   useEffect(() => {
     // Only fetch data if we have a token
-    const token = localStorage.getItem('portal_logistics_token');
+    const token = getCookie('portal_logistics_token');
     if (token) {
       fetchUserData();
     } else {
@@ -143,7 +144,7 @@ const UserDashboard = () => {
     setLoading(true);
     try {
       // Check token first
-      const token = localStorage.getItem('portal_logistics_token');
+      const token = getCookie('portal_logistics_token');
       if (!token) {
         console.error('No token found, redirecting to login');
         logout();

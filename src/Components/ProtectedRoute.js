@@ -8,11 +8,11 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   // Show loading state while checking auth
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh' 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh'
       }}>
         <div>Loading...</div>
       </div>

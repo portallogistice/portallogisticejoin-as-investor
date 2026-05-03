@@ -45,6 +45,16 @@ const AdminLayout = () => {
   useEffect(() => {
     document.documentElement.dataset.adminTheme = theme;
     localStorage.setItem('admin_theme', theme);
+    // Tailwind dark: variants use class strategy on <html>
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    return () => {
+      try {
+        const userTh = localStorage.getItem('theme') || localStorage.getItem('user_theme') || 'light';
+        document.documentElement.classList.toggle('dark', userTh === 'dark');
+      } catch (e) {
+        document.documentElement.classList.remove('dark');
+      }
+    };
   }, [theme]);
 
   useEffect(() => {

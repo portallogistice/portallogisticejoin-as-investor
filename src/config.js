@@ -17,6 +17,6 @@ const resolveFallbackOrigin = () => {
 };
 
 const API_ORIGIN = process.env.REACT_APP_API_ORIGIN || resolveFallbackOrigin();
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || `${API_ORIGIN.replace(/\/$/, '')}/api`;
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || `${API_ORIGIN.replace(/\/$/, '')}`;
 
 export { API_BASE_URL, API_ORIGIN };
